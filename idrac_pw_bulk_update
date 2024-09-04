@@ -1,0 +1,74 @@
+import paramiko
+import time
+import pandas as pd
+
+def change_idrac_password_via_ssh(idrac_ip, username, old_password, new_password):
+    """
+    Change the iDRAC password for a given IP address using SSH.
+    
+    :param idrac_ip: IP address of the iDRAC
+    :param username: Current username
+    :param old_password: Current password
+    :param new_password: New password to set
+    """
+    try:
+        # Establish SSH connection
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(idrac_ip, username=username, password=old_password)
+
+        # Run the racadm command to change the password
+        command = f'racadm set iDRAC.Users.2.Password {new_password}'
+        stdin, stdout, stderr = ssh.exec_command(command)
+        
+        # Wait for the command to complete
+        time.sleep(2)
+
+        # Check the output and errors
+        output = stdout.read().decode()
+        error = stderr.read().decode()
+
+        if 'Object value modified successfully' in output:
+            print(f"Password changed successfully for {idrac_ip}")
+        else:
+            print(f"Failed to change password for {idrac_ip}: {error}")
+
+        # Close the SSH connection
+        ssh.close()
+
+    except Exception as e:
+        print(f"Error changing password for {idrac_ip}: {e}")
+
+def get_ip_addresses_from_excel(file_name, sheet_name, column_name):
+    """
+    Get IP addresses from an Excel file.
+    
+    :param file_name: Name of the Excel file
+    :param sheet_name: Name of the sheet in the Excel file
+    :param column_name: Name of the column containing IP addresses
+    :return: List of IP addresses
+    """
+    df = pd.read_excel(file_name, sheet_name=sheet_name)
+    return df[column_name].dropna().tolist()
+
+def main():
+    # Define new password
+    new_password = "New password here"
+
+    # Define iDRAC credentials
+    username = "Username here"
+    old_password = "Old password here"
+
+    # Get IP addresses from the Excel file
+    file_name = 'idrac_pw_bulk_update_ip_addresses.xlsx'
+    sheet_name = 'IP Addresses'  # Change this if your sheet has a different name
+    column_name = 'IP'  # Change this if your column has a different name
+
+    idrac_ips = get_ip_addresses_from_excel(file_name, sheet_name, column_name)
+
+    # Loop through each iDRAC IP and change the password
+    for ip in idrac_ips:
+        change_idrac_password_via_ssh(ip, username, old_password, new_password)
+
+if __name__ == "__main__":
+    main()
